@@ -87,6 +87,18 @@ Fingerprint a WhatsApp executable or DLL before instrumentation work:
 peerlens whatsapp fingerprint path\to\WhatsAppNative.Voip.dll
 ```
 
+Create an exact build profile from a known binary:
+
+```bash
+peerlens whatsapp profile create path\to\WhatsAppNative.Voip.dll --id local-build --output profiles.json
+```
+
+Check a binary against that profile before using version-specific instrumentation:
+
+```bash
+peerlens whatsapp profile check path\to\WhatsAppNative.Voip.dll --profiles profiles.json
+```
+
 Run a local test capture:
 
 ```bash

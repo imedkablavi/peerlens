@@ -11,6 +11,7 @@ from peerlens.adapters import registry
 from peerlens.adapters.base import AdapterError
 from peerlens.core.binary import fingerprint_binary
 from peerlens.core.session import CaptureSession, read_events
+from peerlens.core.profiles import BuildProfile, ProfileStore, write_profile_file
 from peerlens.reporting.json_report import summarize
 from peerlens.adapters.whatsapp_desktop import WhatsAppDesktopAdapter
 
@@ -116,6 +117,43 @@ def cmd_whatsapp_fingerprint(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_whatsapp_profile_create(args: argparse.Namespace) -> int:
+    try:
+        fingerprint = fingerprint_binary(Path(args.path))
+        profile = BuildProfile(
+            id=args.id,
+            sha256=fingerprint.sha256,
+            application_version=args.version,
+            architecture=fingerprint.architecture,
+            size_of_image=fingerprint.size_of_image,
+            verified=False,
+        )
+        output = Path(args.output)
+        write_profile_file(output, [profile])
+    except (OSError, ValueError) as exc:
+        print(f"could not create profile: {exc}", file=sys.stderr)
+        return 2
+    print(output)
+    return 0
+
+
+def cmd_whatsapp_profile_check(args: argparse.Namespace) -> int:
+    try:
+        fingerprint = fingerprint_binary(Path(args.path))
+        store = ProfileStore.load(Path(args.profiles))
+        profile = store.match(fingerprint)
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"could not check profile: {exc}", file=sys.stderr)
+        return 2
+    result = {
+        "matched": profile is not None,
+        "fingerprint": fingerprint.to_dict(),
+        "profile": profile.to_dict() if profile else None,
+    }
+    print(json.dumps(result, indent=None if args.compact else 2, ensure_ascii=False))
+    return 0 if profile else 3
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="peerlens")
     parser.add_argument("--version", action="version", version=__version__)
@@ -151,6 +189,22 @@ def build_parser() -> argparse.ArgumentParser:
     whatsapp_fingerprint.add_argument("path")
     whatsapp_fingerprint.add_argument("--compact", action="store_true")
     whatsapp_fingerprint.set_defaults(func=cmd_whatsapp_fingerprint)
+
+    whatsapp_profile = whatsapp_sub.add_parser("profile", help="manage exact binary profiles")
+    profile_sub = whatsapp_profile.add_subparsers(dest="profile_command", required=True)
+
+    profile_create = profile_sub.add_parser("create", help="create an exact profile from a binary")
+    profile_create.add_argument("path")
+    profile_create.add_argument("--id", required=True)
+    profile_create.add_argument("--version")
+    profile_create.add_argument("--output", required=True)
+    profile_create.set_defaults(func=cmd_whatsapp_profile_create)
+
+    profile_check = profile_sub.add_parser("check", help="match a binary against a profile file")
+    profile_check.add_argument("path")
+    profile_check.add_argument("--profiles", required=True)
+    profile_check.add_argument("--compact", action="store_true")
+    profile_check.set_defaults(func=cmd_whatsapp_profile_check)
 
     return parser
 
