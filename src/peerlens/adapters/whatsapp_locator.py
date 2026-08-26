@@ -10,7 +10,6 @@ from typing import Iterable, Mapping
 from peerlens.core.binary import fingerprint_binary
 
 VOIP_MODULE = "WhatsAppNative.Voip.dll"
-PROCESS_NAMES = ("WhatsApp.Root.exe", "WhatsApp.exe")
 MAX_SCAN_DEPTH = 6
 
 
