@@ -11,6 +11,7 @@ from peerlens.adapters import registry
 from peerlens.adapters.base import AdapterError
 from peerlens.adapters.whatsapp_desktop import WhatsAppDesktopAdapter
 from peerlens.adapters.whatsapp_locator import inspect_locations, locate_whatsapp
+from peerlens.adapters.whatsapp_preflight import evaluate_preflight
 from peerlens.core.binary import fingerprint_binary
 from peerlens.core.profiles import BuildProfile, ProfileStore, write_profile_file
 from peerlens.core.session import CaptureSession, read_events
@@ -119,6 +120,33 @@ def cmd_whatsapp_locate(args: argparse.Namespace) -> int:
     return 0 if locations else 3
 
 
+def cmd_whatsapp_preflight(args: argparse.Namespace) -> int:
+    try:
+        profiles = ProfileStore.load(Path(args.profiles))
+        locations = locate_whatsapp()
+        adapter = WhatsAppDesktopAdapter()
+        process = None
+        frida_ok = False
+        for check, ok, detail in adapter.doctor():
+            if check == "WhatsApp process" and ok:
+                process = detail
+            elif check == "Frida":
+                frida_ok = ok
+        result = evaluate_preflight(
+            locations=locations,
+            profiles=profiles,
+            system=platform.system(),
+            process=process,
+            frida_ok=frida_ok,
+        )
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"could not run preflight: {exc}", file=sys.stderr)
+        return 2
+
+    print(json.dumps(result, indent=None if args.compact else 2, ensure_ascii=False))
+    return 0 if result["ready"] else 3
+
+
 def cmd_whatsapp_fingerprint(args: argparse.Namespace) -> int:
     try:
         result = fingerprint_binary(Path(args.path)).to_dict()
@@ -200,6 +228,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     whatsapp_locate.add_argument("--compact", action="store_true")
     whatsapp_locate.set_defaults(func=cmd_whatsapp_locate)
+
+    whatsapp_preflight = whatsapp_sub.add_parser(
+        "preflight", help="verify the local build before instrumentation"
+    )
+    whatsapp_preflight.add_argument("--profiles", required=True)
+    whatsapp_preflight.add_argument("--compact", action="store_true")
+    whatsapp_preflight.set_defaults(func=cmd_whatsapp_preflight)
 
     whatsapp_fingerprint = whatsapp_sub.add_parser(
         "fingerprint", help="fingerprint a WhatsApp PE binary or DLL"

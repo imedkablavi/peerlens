@@ -66,3 +66,13 @@ def test_parser_accepts_whatsapp_locate():
     args = parser.parse_args(["whatsapp", "locate", "--compact"])
     assert args.whatsapp_command == "locate"
     assert args.compact is True
+
+
+def test_parser_accepts_whatsapp_preflight():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["whatsapp", "preflight", "--profiles", "profiles.json", "--compact"]
+    )
+    assert args.whatsapp_command == "preflight"
+    assert args.profiles == "profiles.json"
+    assert args.compact is True
