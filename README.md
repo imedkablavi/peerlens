@@ -87,6 +87,12 @@ Locate the installed WhatsApp VoIP module and fingerprint each candidate:
 peerlens whatsapp locate
 ```
 
+Run the instrumentation preflight against an exact build profile:
+
+```bash
+peerlens whatsapp preflight --profiles profiles.json
+```
+
 Fingerprint a WhatsApp executable or DLL before instrumentation work:
 
 ```bash
