@@ -56,3 +56,21 @@ def test_locator_returns_empty_when_no_install_is_present(tmp_path):
         process_paths=[],
     )
     assert result == []
+
+
+def test_process_path_discovery_parses_powershell_output(monkeypatch):
+    import peerlens.adapters.whatsapp_locator as locator
+
+    monkeypatch.setattr(locator.platform, "system", lambda: "Windows")
+
+    def fake_check_output(command, **kwargs):
+        assert command[:4] == ["powershell", "-NoProfile", "-NonInteractive", "-Command"]
+        assert kwargs["timeout"] == 8
+        return "C:\\Apps\\WhatsApp.exe\nC:\\Store\\WhatsApp.Root.exe\n"
+
+    monkeypatch.setattr(locator.subprocess, "check_output", fake_check_output)
+
+    assert locator._powershell_process_paths() == [
+        Path("C:\\Apps\\WhatsApp.exe"),
+        Path("C:\\Store\\WhatsApp.Root.exe"),
+    ]
