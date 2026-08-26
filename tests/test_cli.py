@@ -1,0 +1,15 @@
+from peerlens.cli import build_parser, cmd_capture
+
+
+def test_parser_accepts_lab_capture():
+    parser = build_parser()
+    args = parser.parse_args(["capture", "--adapter", "lab", "--seconds", "1"])
+    assert args.adapter == "lab"
+    assert args.seconds == 1
+
+
+def test_capture_rejects_non_positive_duration(capsys):
+    parser = build_parser()
+    args = parser.parse_args(["capture", "--adapter", "lab", "--seconds", "0"])
+    assert cmd_capture(args) == 2
+    assert "greater than zero" in capsys.readouterr().err
