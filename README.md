@@ -81,6 +81,12 @@ Inspect the local WhatsApp Desktop environment:
 peerlens whatsapp status
 ```
 
+Locate the installed WhatsApp VoIP module and fingerprint each candidate:
+
+```bash
+peerlens whatsapp locate
+```
+
 Fingerprint a WhatsApp executable or DLL before instrumentation work:
 
 ```bash

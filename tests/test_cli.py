@@ -59,3 +59,10 @@ def test_parser_accepts_whatsapp_profile_check():
         ]
     )
     assert args.profile_command == "check"
+
+
+def test_parser_accepts_whatsapp_locate():
+    parser = build_parser()
+    args = parser.parse_args(["whatsapp", "locate", "--compact"])
+    assert args.whatsapp_command == "locate"
+    assert args.compact is True
