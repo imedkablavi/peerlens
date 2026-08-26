@@ -76,3 +76,13 @@ def test_parser_accepts_whatsapp_preflight():
     assert args.whatsapp_command == "preflight"
     assert args.profiles == "profiles.json"
     assert args.compact is True
+
+
+def test_parser_accepts_whatsapp_probe():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["whatsapp", "probe", "--profiles", "profiles.json", "--compact"]
+    )
+    assert args.whatsapp_command == "probe"
+    assert args.profiles == "profiles.json"
+    assert args.compact is True

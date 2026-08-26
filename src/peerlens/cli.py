@@ -12,6 +12,7 @@ from peerlens.adapters.base import AdapterError
 from peerlens.adapters.whatsapp_desktop import WhatsAppDesktopAdapter
 from peerlens.adapters.whatsapp_locator import inspect_locations, locate_whatsapp
 from peerlens.adapters.whatsapp_preflight import evaluate_preflight
+from peerlens.adapters.whatsapp_probe import ProbeError, probe_loaded_module, validate_probe
 from peerlens.core.binary import fingerprint_binary
 from peerlens.core.profiles import BuildProfile, ProfileStore, write_profile_file
 from peerlens.core.session import CaptureSession, read_events
@@ -120,31 +121,75 @@ def cmd_whatsapp_locate(args: argparse.Namespace) -> int:
     return 0 if locations else 3
 
 
+def _run_whatsapp_preflight(profile_path: str) -> dict:
+    profiles = ProfileStore.load(Path(profile_path))
+    locations = locate_whatsapp()
+    adapter = WhatsAppDesktopAdapter()
+    process = None
+    frida_ok = False
+    for check, ok, detail in adapter.doctor():
+        if check == "WhatsApp process" and ok:
+            process = detail
+        elif check == "Frida":
+            frida_ok = ok
+    return evaluate_preflight(
+        locations=locations,
+        profiles=profiles,
+        system=platform.system(),
+        process=process,
+        frida_ok=frida_ok,
+    )
+
+
 def cmd_whatsapp_preflight(args: argparse.Namespace) -> int:
     try:
-        profiles = ProfileStore.load(Path(args.profiles))
-        locations = locate_whatsapp()
-        adapter = WhatsAppDesktopAdapter()
-        process = None
-        frida_ok = False
-        for check, ok, detail in adapter.doctor():
-            if check == "WhatsApp process" and ok:
-                process = detail
-            elif check == "Frida":
-                frida_ok = ok
-        result = evaluate_preflight(
-            locations=locations,
-            profiles=profiles,
-            system=platform.system(),
-            process=process,
-            frida_ok=frida_ok,
-        )
+        result = _run_whatsapp_preflight(args.profiles)
     except (OSError, ValueError, TypeError) as exc:
         print(f"could not run preflight: {exc}", file=sys.stderr)
         return 2
 
     print(json.dumps(result, indent=None if args.compact else 2, ensure_ascii=False))
     return 0 if result["ready"] else 3
+
+
+def cmd_whatsapp_probe(args: argparse.Namespace) -> int:
+    try:
+        preflight = _run_whatsapp_preflight(args.profiles)
+    except (OSError, ValueError, TypeError) as exc:
+        print(f"could not run probe preflight: {exc}", file=sys.stderr)
+        return 2
+
+    output = {"preflight": preflight, "probe": None}
+    if not preflight["ready"]:
+        print(json.dumps(output, indent=None if args.compact else 2, ensure_ascii=False))
+        return 3
+
+    candidates = [
+        row
+        for row in preflight["candidates"]
+        if row.get("exact_match") and row.get("verified")
+    ]
+    if len(candidates) != 1:
+        print("preflight did not select exactly one verified module", file=sys.stderr)
+        return 3
+
+    candidate = candidates[0]
+    fingerprint = candidate["fingerprint"]
+    try:
+        remote = probe_loaded_module(preflight["process"])
+        probe = validate_probe(
+            candidate["module"],
+            fingerprint.get("size_of_image"),
+            remote,
+        )
+    except ProbeError as exc:
+        output["probe"] = {"valid": False, "error": str(exc)}
+        print(json.dumps(output, indent=None if args.compact else 2, ensure_ascii=False))
+        return 4
+
+    output["probe"] = probe
+    print(json.dumps(output, indent=None if args.compact else 2, ensure_ascii=False))
+    return 0 if probe["valid"] else 4
 
 
 def cmd_whatsapp_fingerprint(args: argparse.Namespace) -> int:
@@ -235,6 +280,13 @@ def build_parser() -> argparse.ArgumentParser:
     whatsapp_preflight.add_argument("--profiles", required=True)
     whatsapp_preflight.add_argument("--compact", action="store_true")
     whatsapp_preflight.set_defaults(func=cmd_whatsapp_preflight)
+
+    whatsapp_probe = whatsapp_sub.add_parser(
+        "probe", help="attach and verify the loaded VoIP module"
+    )
+    whatsapp_probe.add_argument("--profiles", required=True)
+    whatsapp_probe.add_argument("--compact", action="store_true")
+    whatsapp_probe.set_defaults(func=cmd_whatsapp_probe)
 
     whatsapp_fingerprint = whatsapp_sub.add_parser(
         "fingerprint", help="fingerprint a WhatsApp PE binary or DLL"
