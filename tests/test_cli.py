@@ -13,3 +13,16 @@ def test_capture_rejects_non_positive_duration(capsys):
     args = parser.parse_args(["capture", "--adapter", "lab", "--seconds", "0"])
     assert cmd_capture(args) == 2
     assert "greater than zero" in capsys.readouterr().err
+
+
+def test_parser_accepts_whatsapp_status():
+    parser = build_parser()
+    args = parser.parse_args(["whatsapp", "status"])
+    assert args.whatsapp_command == "status"
+
+
+def test_parser_accepts_whatsapp_fingerprint():
+    parser = build_parser()
+    args = parser.parse_args(["whatsapp", "fingerprint", "sample.dll", "--compact"])
+    assert args.path == "sample.dll"
+    assert args.compact is True

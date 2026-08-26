@@ -9,8 +9,10 @@ import sys
 from peerlens import __version__
 from peerlens.adapters import registry
 from peerlens.adapters.base import AdapterError
+from peerlens.core.binary import fingerprint_binary
 from peerlens.core.session import CaptureSession, read_events
 from peerlens.reporting.json_report import summarize
+from peerlens.adapters.whatsapp_desktop import WhatsAppDesktopAdapter
 
 
 def _status(ok: bool) -> str:
@@ -97,6 +99,23 @@ def cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_whatsapp_status(_: argparse.Namespace) -> int:
+    adapter = WhatsAppDesktopAdapter()
+    for check, ok, detail in adapter.doctor():
+        print(f"{_status(ok):4}  {check}: {detail}")
+    return 0
+
+
+def cmd_whatsapp_fingerprint(args: argparse.Namespace) -> int:
+    try:
+        result = fingerprint_binary(Path(args.path)).to_dict()
+    except (OSError, ValueError) as exc:
+        print(f"could not fingerprint binary: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(result, indent=None if args.compact else 2, ensure_ascii=False))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="peerlens")
     parser.add_argument("--version", action="version", version=__version__)
@@ -119,6 +138,19 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("events")
     report.add_argument("--output")
     report.set_defaults(func=cmd_report)
+
+    whatsapp = sub.add_parser("whatsapp", help="WhatsApp Desktop discovery tools")
+    whatsapp_sub = whatsapp.add_subparsers(dest="whatsapp_command", required=True)
+
+    whatsapp_status = whatsapp_sub.add_parser("status", help="show local WhatsApp Desktop status")
+    whatsapp_status.set_defaults(func=cmd_whatsapp_status)
+
+    whatsapp_fingerprint = whatsapp_sub.add_parser(
+        "fingerprint", help="fingerprint a WhatsApp PE binary or DLL"
+    )
+    whatsapp_fingerprint.add_argument("path")
+    whatsapp_fingerprint.add_argument("--compact", action="store_true")
+    whatsapp_fingerprint.set_defaults(func=cmd_whatsapp_fingerprint)
 
     return parser
 
