@@ -93,6 +93,12 @@ Run the instrumentation preflight against an exact build profile:
 peerlens whatsapp preflight --profiles profiles.json
 ```
 
+Verify the loaded VoIP module through Frida without installing function hooks:
+
+```bash
+peerlens whatsapp probe --profiles profiles.json
+```
+
 Fingerprint a WhatsApp executable or DLL before instrumentation work:
 
 ```bash
