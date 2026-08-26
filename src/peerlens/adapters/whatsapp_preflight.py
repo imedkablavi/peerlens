@@ -7,6 +7,8 @@ from peerlens.adapters.whatsapp_locator import WhatsAppLocation
 from peerlens.core.binary import fingerprint_binary
 from peerlens.core.profiles import ProfileStore
 
+SUPPORTED_ARCHITECTURES = frozenset({"x86_64"})
+
 
 def evaluate_preflight(
     *,
@@ -19,6 +21,7 @@ def evaluate_preflight(
     candidates: list[dict] = []
     exact_matches = 0
     verified_matches = 0
+    matched_fingerprints: list[dict] = []
 
     for location in locations:
         row = location.to_dict()
@@ -40,6 +43,8 @@ def evaluate_preflight(
             verified = bool(profile and profile.verified)
             exact_matches += int(matched)
             verified_matches += int(verified)
+            if matched:
+                matched_fingerprints.append(fingerprint.to_dict())
             row.update(
                 {
                     "fingerprint": fingerprint.to_dict(),
@@ -51,6 +56,11 @@ def evaluate_preflight(
             )
         candidates.append(row)
 
+    matched_fingerprint = matched_fingerprints[0] if len(matched_fingerprints) == 1 else None
+    pe_binary = bool(matched_fingerprint and matched_fingerprint.get("format") == "pe")
+    architecture = matched_fingerprint.get("architecture") if matched_fingerprint else None
+    supported_architecture = bool(architecture in SUPPORTED_ARCHITECTURES)
+
     checks = {
         "windows": system == "Windows",
         "process_running": process is not None,
@@ -58,6 +68,8 @@ def evaluate_preflight(
         "module_found": bool(candidates),
         "exact_profile_match": exact_matches == 1,
         "verified_profile": verified_matches == 1,
+        "pe_binary": pe_binary,
+        "supported_architecture": supported_architecture,
     }
 
     reasons: list[str] = []
@@ -77,6 +89,11 @@ def evaluate_preflight(
         reasons.append("the matching build profile is not verified for instrumentation")
     elif verified_matches > 1:
         reasons.append("more than one verified module candidate was found")
+
+    if exact_matches == 1 and not pe_binary:
+        reasons.append("the matching module is not a valid PE binary")
+    elif exact_matches == 1 and not supported_architecture:
+        reasons.append(f"unsupported module architecture: {architecture or 'unknown'}")
 
     return {
         "ready": all(checks.values()),
