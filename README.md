@@ -75,6 +75,18 @@ List available adapters:
 peerlens adapters
 ```
 
+Inspect the local WhatsApp Desktop environment:
+
+```bash
+peerlens whatsapp status
+```
+
+Fingerprint a WhatsApp executable or DLL before instrumentation work:
+
+```bash
+peerlens whatsapp fingerprint path\to\WhatsAppNative.Voip.dll
+```
+
 Run a local test capture:
 
 ```bash

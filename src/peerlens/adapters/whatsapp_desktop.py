@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import platform
 import subprocess
 from typing import Iterable
@@ -20,10 +21,9 @@ def _running_process_names() -> Iterable[str]:
                 stderr=subprocess.DEVNULL,
                 timeout=5,
             )
-            for line in output.splitlines():
-                if not line:
-                    continue
-                yield line.split(",", 1)[0].strip('"')
+            for row in csv.reader(output.splitlines()):
+                if row:
+                    yield row[0].strip()
         else:
             output = subprocess.check_output(
                 ["ps", "-eo", "comm="],
@@ -36,6 +36,20 @@ def _running_process_names() -> Iterable[str]:
         return
 
 
+def detect_process() -> str | None:
+    process_set = {name.lower() for name in _running_process_names()}
+    return next((name for name in PROCESS_NAMES if name.lower() in process_set), None)
+
+
+def frida_status() -> tuple[bool, str]:
+    try:
+        import frida
+    except ImportError:
+        return False, "not installed; install peerlens[frida] when needed"
+    version = getattr(frida, "__version__", None)
+    return True, f"installed{f' ({version})' if version else ''}"
+
+
 class WhatsAppDesktopAdapter(Adapter):
     info = AdapterInfo(
         name="whatsapp-desktop",
@@ -45,16 +59,8 @@ class WhatsAppDesktopAdapter(Adapter):
 
     def doctor(self) -> list[tuple[str, bool, str]]:
         system = platform.system()
-        process_set = {name.lower() for name in _running_process_names()}
-        detected = next((p for p in PROCESS_NAMES if p.lower() in process_set), None)
-
-        try:
-            import frida  # noqa: F401
-            frida_ok = True
-            frida_detail = "installed"
-        except ImportError:
-            frida_ok = False
-            frida_detail = "not installed; install peerlens[frida] when needed"
+        detected = detect_process()
+        frida_ok, frida_detail = frida_status()
 
         return [
             ("operating system", system == "Windows", system),
